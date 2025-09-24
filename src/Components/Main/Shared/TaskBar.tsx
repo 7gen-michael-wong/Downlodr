@@ -152,7 +152,7 @@ const TaskBar: React.FC<TaskBarProps> = ({ className }) => {
           });
         } else if (currentDownload?.controllerId) {
           try {
-            const success = await window.ytdlp.killController(
+            const success = await window.extendr.killController(
               currentDownload.controllerId,
             );
             if (success) {
@@ -214,7 +214,7 @@ const TaskBar: React.FC<TaskBarProps> = ({ className }) => {
             });
           } else if (download.controllerId) {
             try {
-              const success = await window.ytdlp.killController(
+              const success = await window.extendr.killController(
                 download.controllerId,
               );
               if (success) {
@@ -530,7 +530,7 @@ const TaskBar: React.FC<TaskBarProps> = ({ className }) => {
         // For active downloads, stop them first
         if (download.controllerId) {
           try {
-            const success = await window.ytdlp.killController(
+            const success = await window.extendr.killController(
               download.controllerId,
             );
             if (success) {

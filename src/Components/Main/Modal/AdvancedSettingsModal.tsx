@@ -10,6 +10,7 @@
  * @returns JSX.Element - The rendered component displaying an AdvancedSettingsModal
  */
 
+import type {} from 'extendr/dist/types/global';
 import { useToast } from '@/Components/SubComponents/shadcn/hooks/use-toast';
 import React, { useEffect, useRef, useState } from 'react';
 import { FiCheck, FiDownload } from 'react-icons/fi';
@@ -68,7 +69,9 @@ const AdvancedSettingsModal: React.FC<AdvancedSettingsModalProps> = ({
 
   const loadCurrentVersion = async () => {
     try {
-      const result = await window.ytdlp.getCurrentVersion();
+      const result = await window.extendr.extensions[
+        'yt-dlp-extension'
+      ].getCurrentVersion();
       if (result.success && result.version) {
         setCurrentVersion(result.version);
       } else {
@@ -143,7 +146,9 @@ const AdvancedSettingsModal: React.FC<AdvancedSettingsModalProps> = ({
     setIsUpdating(true);
 
     try {
-      const result = await window.ytdlp.checkAndUpdate();
+      const result = await window.extendr.extensions[
+        'yt-dlp-extension'
+      ].checkAndUpdate();
 
       if (result.success) {
         // Update current version if it changed
@@ -229,7 +234,9 @@ const AdvancedSettingsModal: React.FC<AdvancedSettingsModalProps> = ({
         options.version = latestVersion;
       }
 
-      const result = await window.ytdlp.downloadYTDLP(options);
+      const result = await window.extendr.extensions[
+        'yt-dlp-extension'
+      ].downloadYTDLP(options);
 
       if (result.success) {
         toast({
@@ -259,7 +266,9 @@ const AdvancedSettingsModal: React.FC<AdvancedSettingsModalProps> = ({
   // Handle custom file path selection
   const handleSelectPath = async () => {
     try {
-      const selectedPath = await window.ytdlp.selectDownloadDirectory();
+      const selectedPath = await window.extendr.extensions[
+        'yt-dlp-extension'
+      ].selectDownloadDirectory();
       if (selectedPath) {
         setFilePath(selectedPath);
       }
@@ -292,7 +301,9 @@ const AdvancedSettingsModal: React.FC<AdvancedSettingsModalProps> = ({
       if (platform !== 'auto') options.platform = platform;
       options.forceDownload = forceDownload;
 
-      const result = await window.ytdlp.downloadYTDLP(options);
+      const result = await window.extendr.extensions[
+        'yt-dlp-extension'
+      ].downloadYTDLP(options);
 
       if (result.success) {
         toast({

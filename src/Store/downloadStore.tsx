@@ -445,7 +445,7 @@ class DownloadController {
     }
 
     // Start the actual download
-    const downloadId = (window as any).ytdlp.download(
+    const downloadId = window.extendr.download(
       {
         url: download.videoUrl,
         outputFilepath: finalLocation,
@@ -1312,7 +1312,7 @@ const useDownloadStore = create<DownloadStore>()(
           );
         }
         // Create a download ID before starting the download
-        const downloadId = (window as any).ytdlp.download(
+        const downloadId = window.extendr.download(
           {
             url: videoUrl,
             outputFilepath: finalLocation,
@@ -1470,7 +1470,7 @@ const useDownloadStore = create<DownloadStore>()(
 
         try {
           // Fetch metadata in background
-          const info = await window.ytdlp.getInfo(videoUrl);
+          const info = await window.extendr.getInfo(videoUrl);
 
           // Get channel name from info
           const channelName = info.data?.channel || info.data?.uploader || '';

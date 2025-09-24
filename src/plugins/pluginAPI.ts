@@ -340,7 +340,7 @@ function createDownloadAPI(pluginId: string): DownloadAPI {
             deleteDownloading(id);
             return true;
           } else if (activeDownload.controllerId) {
-            const success = await window.ytdlp.killController(
+            const success = await window.extendr.killController(
               activeDownload.controllerId,
             );
             if (success) {
@@ -387,7 +387,7 @@ function createDownloadAPI(pluginId: string): DownloadAPI {
               deleteDownloading(download.id);
             } else if (download.controllerId) {
               try {
-                const success = await window.ytdlp.killController(
+                const success = await window.extendr.killController(
                   download.controllerId,
                 );
 
@@ -528,7 +528,7 @@ function createDownloadAPI(pluginId: string): DownloadAPI {
           try {
             updateDownloadStatus(currentDownload.id, 'paused');
 
-            const response = await window.ytdlp.killController(
+            const response = await window.extendr.killController(
               currentDownload.controllerId,
             );
 

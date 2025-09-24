@@ -9,6 +9,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import { MenuItemRegistration, TaskBarItemRegistration } from './plugins/types';
+import * as extendr from 'extendr';
 
 // downlodr exlusive functions
 contextBridge.exposeInMainWorld('downlodrFunctions', {
@@ -177,25 +178,6 @@ class BalancedDownloadThrottler {
 
 // Ytdlp exclusive functions
 contextBridge.exposeInMainWorld('ytdlp', {
-  getPlaylistInfo: async (url: string) => {
-    return await ipcRenderer.invoke('ytdlp:playlist:info', url);
-  },
-
-  getInfo: async (url: string) => {
-    try {
-      const info = await ipcRenderer.invoke('ytdlp:info', url);
-      return info;
-    } catch {
-      return null;
-    }
-  },
-
-  killController: (id: any) => ipcRenderer.invoke('kill-controller', id),
-
-  stop: async (id: any) => {
-    return await ipcRenderer.invoke('ytdlp:stop', id);
-  },
-
   selectDownloadDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
 
   /*
@@ -220,50 +202,6 @@ contextBridge.exposeInMainWorld('ytdlp', {
     return await ipcRenderer.invoke('ytdlp:checkAndUpdate');
   },
   */
-
-  download(args: object, callback: (result: object) => void) {
-    const id = uuidv4();
-    const channel = `ytdlp:download:status:${id}`;
-    const controllerChannel = `ytdlp:controller:${id}`;
-    const throttler = BalancedDownloadThrottler.getInstance();
-
-    async function startDownload() {
-      try {
-        ipcRenderer.invoke('ytdlp:download', id, args);
-
-        // Listen for controller ID from the main process
-        ipcRenderer.on(controllerChannel, (event, data) => {
-          // Controller data is critical, send immediately
-          throttler.forceUpdate(
-            id,
-            {
-              type: 'controller',
-              downloadId: data.downloadId,
-              controllerId: data.controllerId,
-            },
-            callback,
-          );
-        });
-
-        ipcRenderer.on(channel, (event, chunk) => {
-          // Use balanced throttling for all updates
-          throttler.throttleUpdate(id, chunk, callback);
-
-          // Clean up on finish
-          if (chunk.data?.status === 'finished') {
-            ipcRenderer.removeAllListeners(channel);
-            ipcRenderer.removeAllListeners(controllerChannel);
-            throttler.cleanup(id);
-          }
-        });
-      } catch (error) {
-        console.error('Error during download:', error);
-      }
-    }
-
-    startDownload().catch(console.error);
-    return id;
-  },
 });
 
 contextBridge.exposeInMainWorld('electronDevTools', {
@@ -397,3 +335,13 @@ contextBridge.exposeInMainWorld('plugins', {
   // Close plugin panel
   closePluginPanel: () => ipcRenderer.invoke('plugins:close-panel'),
 });
+
+ipcRenderer.on('set-tray-icon', (e, ...args: any[]) => {
+  ipcRenderer.invoke('set-tray-icon', ...args);
+});
+
+ipcRenderer.on('show-notification', (e, ...args: any[]) => {
+  ipcRenderer.invoke('show-notification', ...args);
+});
+
+extendr.Deployr.setupPreload();

@@ -614,7 +614,7 @@ const DownloadList: React.FC<DownloadListProps> = ({ downloads }) => {
     } else if (currentDownload && currentDownload.controllerId != '---') {
       try {
         updateDownloadStatus(downloadId, 'paused');
-        window.ytdlp
+        window.extendr
           .killController(currentDownload.controllerId)
           .then((response: { success: boolean; error?: string }) => {
             if (response.success) {
@@ -710,7 +710,7 @@ const DownloadList: React.FC<DownloadListProps> = ({ downloads }) => {
     // Handle active downloads
     if (download.status === 'downloading' && controllerId) {
       try {
-        const success = await window.ytdlp.killController(controllerId);
+        const success = await window.extendr.killController(controllerId);
         if (!success) {
           toast({
             variant: 'destructive',

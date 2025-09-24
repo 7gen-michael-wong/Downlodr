@@ -24,10 +24,10 @@ import http from 'http';
 import https from 'https';
 import os from 'os';
 import path from 'path';
-import * as YTDLP from 'yt-dlp-helper';
 import { checkForUpdates } from './Utils/Data/updateChecker';
 import { PluginManager } from './plugins/pluginManager';
 import { pluginRegistry } from './plugins/registry';
+import { setupExtendr } from './Utils/extensionLoader';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -595,36 +595,6 @@ ipcMain.handle('normalizePath', async (event, filepath) => {
   }
 });
 
-// get the playlist information
-ipcMain.handle('ytdlp:playlist:info', async (e, videoUrl) => {
-  try {
-    const info = await YTDLP.getPlaylistInfo({
-      url: videoUrl.url,
-      //ytdlpDownloadDestination: os.tmpdir(),
-      // ffmpegDownloadDestination: os.tmpdir(),
-    });
-    return info;
-  } catch (error) {
-    console.error('Error fetching playlist info:', error);
-    throw error; // Propagate the error to the renderer process
-  }
-});
-
-// get the video information
-ipcMain.handle('ytdlp:info', async (e, url) => {
-  YTDLP.Config.log = true;
-  try {
-    const info = await YTDLP.getInfo(url);
-    if (!info) {
-      throw new Error('No info returned from YTDLP.getInfo');
-    }
-    return info;
-  } catch (error) {
-    console.error('Error fetching video info:', error);
-    return { error: error.message };
-  }
-});
-
 /*
 // Get current YT-DLP version
 ipcMain.handle('ytdlp:getCurrentVersion', async () => {
@@ -850,167 +820,6 @@ ipcMain.handle('ytdlp:downloadYTDLP', async (_event, options = {}) => {
 */
 // after identifying ID kill/stop the id
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function killControllerById(id: any) {
-  try {
-    const controller = YTDLP.getTerminalFromID(id);
-
-    if (controller) {
-      controller.kill();
-      return true;
-    } else {
-      return false;
-    }
-  } catch (error) {
-    console.error(`Failed to kill controller with ID ${id}:`, error);
-    return false;
-  }
-}
-
-// get the terminal or controller of the download to stop, then call killControllerById
-ipcMain.handle('ytdlp:stop', (e, id: string) => {
-  try {
-    const terminal = YTDLP.getTerminalFromID(id);
-    if (!terminal) {
-      return false;
-    }
-    terminal.kill('SIGKILL');
-    return true;
-  } catch (error) {
-    return false;
-  }
-});
-
-// Listen for the kill-controller event from the renderer
-ipcMain.handle('kill-controller', async (_, id) => {
-  return killControllerById(id); // Call the function and return the result
-});
-
-// download video from link
-ipcMain.handle('ytdlp:download', async (e, id, args) => {
-  try {
-    const controller = await YTDLP.download({
-      // args needed for download
-      args: {
-        url: args.url,
-        output: args.outputFilepath,
-        videoFormat: args.videoFormat,
-        remuxVideo: args.remuxVideo,
-        audioFormat: args.audioExt,
-        audioQuality: args.audioFormatId,
-        limitRate: args.limitRate,
-      },
-    });
-
-    if (!controller || typeof controller.listen !== 'function') {
-      throw new Error(
-        'Controller is not defined or does not have a listen method',
-      );
-    }
-
-    // Send the controller ID back to the renderer process
-    e.sender.send(`ytdlp:controller:${id}`, {
-      downloadId: id,
-      controllerId: controller.id,
-    });
-
-    // Set up process completion detection WITHOUT interfering with the main stream
-    let processCompletionHandled = false;
-    let completeLog = ''; // Collect all logs here
-
-    if (controller.process) {
-      const handleProcessCompletion = (
-        code: number,
-        signal: string,
-        eventType: string,
-      ) => {
-        if (processCompletionHandled) return; // Prevent duplicate handling
-        processCompletionHandled = true;
-
-        const completionMessage = `Process '${controller.id}' ${eventType} with code: ${code}, signal: ${signal}`;
-
-        // completion message to complete log
-        completeLog += `\n${completionMessage}`;
-
-        // Send completion with complete log after a small delay to ensure all other logs are processed first
-        setTimeout(() => {
-          e.sender.send(`ytdlp:download:status:${id}`, {
-            type: 'completion',
-            data: {
-              log: completionMessage,
-              completeLog: completeLog,
-              exitCode: code,
-              signal: signal,
-              controllerId: controller.id,
-            },
-          });
-        }, 100); // Small delay to ensure stream logs are processed first
-      };
-
-      controller.process.on('exit', (code: number, signal: string) => {
-        handleProcessCompletion(code, signal, 'exited');
-      });
-
-      controller.process.on('close', (code: number, signal: string) => {
-        // Only handle close if exit wasn't already handled
-        if (!processCompletionHandled) {
-          handleProcessCompletion(code, signal, 'closed');
-        }
-      });
-    } else {
-      console.log(
-        `⚠️ Controller ${controller.id} does not expose process - will rely on stream completion`,
-      );
-    }
-
-    // Process the main download stream normally
-    for await (const chunk of controller.listen()) {
-      // Collect ALL logs in the main process
-      if (chunk?.data?.log) {
-        completeLog += chunk.data.log; // Add to complete log
-      }
-
-      // Send chunks normally for progress updates, but also include complete log so far
-      const enhancedChunk = {
-        ...chunk,
-        completeLog: completeLog, // Add complete log to every chunk
-      };
-      e.sender.send(`ytdlp:download:status:${id}`, enhancedChunk);
-
-      // Handle download completion notifications
-      if (chunk != null && chunk.data && chunk.data.status === 'finished') {
-        setAlertTrayIcon();
-
-        // Notify the main process about the finished download
-        const win = BrowserWindow.getAllWindows()[0];
-        if (win) {
-          win.webContents.send('download-finished', {
-            name: args.name,
-            id: id,
-            location: args.outputFilepath,
-          });
-        }
-      }
-    }
-    // If process completion wasn't handled through events, send a fallback after delay
-    setTimeout(() => {
-      if (!processCompletionHandled) {
-        e.sender.send(`ytdlp:download:status:${id}`, {
-          type: 'stream_ended',
-          data: {
-            log: `Process '${controller.id}' stream completed`,
-            controllerId: controller.id,
-          },
-        });
-      }
-    }, 2000);
-
-    // Return the download ID and controller ID
-    return { downloadId: id, controllerId: controller.id };
-  } catch (error) {
-    e.sender.send(`ytdlp:download:error:${id}`, error.message);
-    throw error; // Ensure the error is propagated
-  }
-});
 
 // get clipboard text
 ipcMain.handle('get-clipboard-text', () => {
@@ -1143,6 +952,8 @@ const stopClipboardMonitoring = () => {
 
 // once the app opens
 app.on('ready', async () => {
+  await setupExtendr();
+
   createWindow();
   createTray();
   updateCloseHandler();
@@ -1783,3 +1594,30 @@ ipcMain.handle('get-current-version', async () => {
   // Get version from package.json or app.getVersion()
   return app.getVersion();
 });
+
+ipcMain.handle('set-tray-icon', (e, variant: string) => {
+  switch (variant) {
+    case 'reset':
+      return resetTrayIcon();
+    case 'alert':
+      return setAlertTrayIcon();
+  }
+});
+
+ipcMain.handle(
+  'show-notification',
+  (_event, title: string, message: string) => {
+    // Show notification
+    showNotification(title, message, () => {
+      // Show the app window when notification is clicked
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+        resetTrayIcon(); // Reset icon when app is shown via notification
+      }
+    });
+
+    // Change the tray icon to the alert version
+    setAlertTrayIcon();
+  },
+);

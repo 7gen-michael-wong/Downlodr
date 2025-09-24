@@ -1,0 +1,26 @@
+{
+  "name": "yt-dlp-extension",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node esbuild.config.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "yt-dlp-helper": "github:Talisik/yt-dlp-helper"
+  },
+  "devDependencies": {
+    "@types/node": "^24.4.0",
+    "electron": "^38.1.0",
+    "esbuild": "^0.25.9",
+    "typescript": "^5.9.2"
+  }
+}

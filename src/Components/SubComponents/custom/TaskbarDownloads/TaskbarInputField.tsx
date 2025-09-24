@@ -90,7 +90,9 @@ const TaskbarInputField = () => {
   const fetchPlaylistInfo = async (url: string) => {
     setIsLoading(true);
     try {
-      const info = await window.ytdlp.getPlaylistInfo({ url });
+      const info = await window.extendr.extensions[
+        'yt-dlp-extension'
+      ].getPlaylistInfo({ url });
 
       setVideoTitle(info.data.title);
 

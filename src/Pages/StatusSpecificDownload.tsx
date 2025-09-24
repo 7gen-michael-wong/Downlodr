@@ -904,10 +904,10 @@ const StatusSpecificDownloads = () => {
     } else if (currentDownload && currentDownload.controllerId != '---') {
       try {
         updateDownloadStatus(downloadId, 'paused');
-        window.ytdlp
+        window.extendr
           .killController(currentDownload.controllerId)
-          .then((response: { success: boolean; error?: string }) => {
-            if (response.success) {
+          .then((response: boolean) => {
+            if (response) {
               setTimeout(() => {
                 updateDownloadStatus(downloadId, 'paused');
               }, 1200);
@@ -1100,7 +1100,7 @@ const StatusSpecificDownloads = () => {
         downloading.forEach(async (download) => {
           if (download.controllerId) {
             try {
-              const success = await window.ytdlp.killController(
+              const success = await window.extendr.killController(
                 download.controllerId,
               );
               if (success) {
@@ -1210,7 +1210,7 @@ const StatusSpecificDownloads = () => {
     // Handle active downloads
     if (download.status === 'downloading' && controllerId) {
       try {
-        const success = await window.ytdlp.killController(controllerId);
+        const success = await window.extendr.killController(controllerId);
         if (!success) {
           toast({
             variant: 'destructive',
