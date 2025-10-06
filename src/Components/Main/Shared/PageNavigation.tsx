@@ -108,7 +108,7 @@ const PageNavigation: React.FC<PageNavigationProps> = ({ className = '' }) => {
           }
           onClick={handleClosePanel}
         >
-          <span>Plugins</span>
+          <span className="text-nowrap">Add-Ons</span>
         </NavLink>
       </div>
 

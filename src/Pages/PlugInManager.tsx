@@ -27,6 +27,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FaArrowsRotate, FaPlus } from 'react-icons/fa6';
 import { FiSearch } from 'react-icons/fi';
 import { NavLink } from 'react-router-dom';
+import { ExtensionView } from './TabsContents/ExtensionView';
 
 // Extended interface for browse plugins with formatted size
 interface BrowsePluginInfo extends PluginInfo {
@@ -434,7 +435,7 @@ const PluginManager = () => {
   };
   // dark:bg-darkModeCompliment bg-[#fcf0e3] text-gray-950 shadow-sm dark:text-gray-50
   return (
-    <div className="min-h-screen w-full bg-[#FBFBFB] dark:bg-darkModeDropdown">
+    <div className="h-full w-full bg-[#FBFBFB] dark:bg-darkModeDropdown">
       {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={showConfirmModal}
@@ -455,12 +456,12 @@ const PluginManager = () => {
         updateType="plugin"
         pluginName={currentUpdatingPlugin?.name}
       />
-      <div className="p-4">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex justify-between items-center w-full">
+      <div className="p-4 h-full">
+        <div className="flex items-start mb-4 h-full">
+          <div className="flex justify-between items-start w-full h-full">
             <Tabs
               defaultValue="installed"
-              className="w-full"
+              className="w-full h-full"
               onValueChange={setActiveTab}
             >
               <TabsList className="flex justify-between items-center w-full">
@@ -477,6 +478,12 @@ const PluginManager = () => {
                       className="text-sm font-medium data-[state=active]:bg-white data-[state=active]:border data-[state=active]:border-divider dark:data-[state=active]:bg-darkMode dark:data-[state=active]:border-darkModeBorderColor dark:data-[state=active]:text-white"
                     >
                       Browse Plugins
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="extensions"
+                      className="text-sm font-medium data-[state=active]:bg-white data-[state=active]:border data-[state=active]:border-divider dark:data-[state=active]:bg-darkMode dark:data-[state=active]:border-darkModeBorderColor dark:data-[state=active]:text-white"
+                    >
+                      Extensions
                     </TabsTrigger>
                   </div>
                 </div>
@@ -665,6 +672,12 @@ const PluginManager = () => {
                     })}
                   </div>
                 )}
+              </TabsContent>
+              <TabsContent
+                value="extensions"
+                className="my-6 w-full flex-1 h-0"
+              >
+                <ExtensionView />
               </TabsContent>
             </Tabs>
           </div>
