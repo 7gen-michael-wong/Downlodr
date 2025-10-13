@@ -56,9 +56,11 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { toast } from '@/Components/SubComponents/shadcn/hooks/use-toast';
-import { downloadEnglishCaptions } from '@/DataFunctions/captionsHelper';
-import { VideoFormatService } from '@/DataFunctions/GetDownloadMetaData';
-import { useMainStore } from '@/Store/mainStore'; //  import
+import { config } from '@/config';
+import { useMainStore } from '@/Store/mainStore';
+import { downloadEnglishCaptions } from '@/Utils/Metadata/captionsHelper';
+import { VideoFormatService } from '@/Utils/Metadata/GetDownloadMetaData';
+import { TelemetryService } from '@/Utils/Telemetry/telemetryService';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -257,25 +259,54 @@ class DownloadController {
 
   // Start the download worker if not already running
   startWorker() {
-    if (this.processingInterval) return; // Already running
+    console.log('🚀 DownloadController.startWorker CALLED');
+    console.log('📥 Received data:', {
+      isAlreadyRunning: !!this.processingInterval,
+      isProcessing: this.isProcessing,
+    });
 
-    console.log('DownloadController: Starting worker');
+    if (this.processingInterval) {
+      console.log(
+        '📤 DownloadController.startWorker OUTPUT: Already running, skipping',
+      );
+      return; // Already running
+    }
+
+    console.log('⚙️ DownloadController.startWorker: Starting worker');
     this.processingInterval = setInterval(() => {
       this.processNextDownload();
     }, 500); // Check every 500ms for smoother processing
 
     // Also start the stalled download checker
     this.startStalledChecker();
+    console.log(
+      '📤 DownloadController.startWorker OUTPUT: Worker and stalled checker started',
+    );
   }
 
   // Start the stalled download checker
   startStalledChecker() {
-    if (this.stalledCheckInterval) return; // Already running
+    console.log('🔍 DownloadController.startStalledChecker CALLED');
+    console.log('📥 Received data:', {
+      isAlreadyRunning: !!this.stalledCheckInterval,
+    });
 
-    console.log('DownloadController: Starting stalled download checker');
+    if (this.stalledCheckInterval) {
+      console.log(
+        '📤 DownloadController.startStalledChecker OUTPUT: Already running, skipping',
+      );
+      return; // Already running
+    }
+
+    console.log(
+      '⏰ DownloadController.startStalledChecker: Starting stalled download checker',
+    );
     this.stalledCheckInterval = setInterval(() => {
       useDownloadStore.getState().checkStalledDownloads();
     }, 30000); // Check every 30 seconds
+    console.log(
+      '📤 DownloadController.startStalledChecker OUTPUT: Stalled checker started (30s interval)',
+    );
   }
 
   // Stop the download worker
@@ -301,7 +332,14 @@ class DownloadController {
 
   // Process one download at a time (Worker Pattern)
   private async processNextDownload() {
-    if (this.isProcessing) return; // Prevent concurrent processing
+    console.log('⚡ DownloadController.processNextDownload CALLED');
+
+    if (this.isProcessing) {
+      console.log(
+        '📤 DownloadController.processNextDownload OUTPUT: Already processing, skipping',
+      );
+      return; // Prevent concurrent processing
+    }
 
     const store = useDownloadStore.getState();
     const { queuedDownloads, downloading } = store;
@@ -316,12 +354,26 @@ class DownloadController {
     // Token Bucket Algorithm: Check if we have available "tokens" (slots)
     const availableTokens = maxConcurrentDownloads - currentActiveDownloads;
 
+    console.log('📥 Received data:', {
+      queuedDownloadsCount: queuedDownloads.length,
+      currentActiveDownloads,
+      maxConcurrentDownloads,
+      availableTokens,
+      queuedDownloadIds: queuedDownloads.map((d) => d.id),
+    });
+
     if (availableTokens <= 0) {
+      console.log(
+        '📤 DownloadController.processNextDownload OUTPUT: No tokens available, waiting',
+      );
       // No tokens available, wait for next cycle
       return;
     }
 
     if (queuedDownloads.length === 0) {
+      console.log(
+        '📤 DownloadController.processNextDownload OUTPUT: Queue empty, stopping worker',
+      );
       // No work to do, stop worker to save resources
       this.stopWorker();
       return;
@@ -416,7 +468,7 @@ class DownloadController {
     }
 
     // Start the actual download
-    const downloadId = (window as any).ytdlp.download(
+    const downloadResult = await window.extendr.download(
       {
         url: download.videoUrl,
         outputFilepath: finalLocation,
@@ -428,9 +480,13 @@ class DownloadController {
       },
       async (result: any) => {
         // Use the optimized updateDownload method instead of inline callbacks
-        useDownloadStore.getState().updateDownload(downloadId, result);
+        useDownloadStore
+          .getState()
+          .updateDownload(downloadResult.downloadId, result);
       },
     );
+
+    const downloadId = downloadResult.downloadId;
 
     // Handle captions and thumbnails (same as original)
     let captionsPath = '';
@@ -789,7 +845,16 @@ const useDownloadStore = create<DownloadStore>()(
       availableCategories: [] as string[],
 
       checkFinishedDownloads: async () => {
+        console.log('🔍 checkFinishedDownloads CALLED');
         const currentDownloads = get().downloading;
+        console.log('📥 Received data:', {
+          currentDownloadsCount: currentDownloads.length,
+          downloadStatuses: currentDownloads.map((d) => ({
+            id: d.id,
+            status: d.status,
+            completionCount: d.completionCount,
+          })),
+        });
 
         // Find downloads that are marked as finished and ready to be moved
         const finishedDownloads = currentDownloads.filter(
@@ -798,8 +863,24 @@ const useDownloadStore = create<DownloadStore>()(
             downloading.completionCount >= 2, // Both phases completed
         );
 
+        console.log('🎯 checkFinishedDownloads FILTER RESULT:', {
+          finishedDownloadsCount: finishedDownloads.length,
+          finishedDownloadIds: finishedDownloads.map((d) => d.id),
+        });
+
         if (finishedDownloads.length > 0) {
+          console.log(
+            '🚀 checkFinishedDownloads PROCESSING FINISHED DOWNLOADS',
+          );
+
           for (const download of finishedDownloads) {
+            console.log('📦 checkFinishedDownloads PROCESSING DOWNLOAD:', {
+              id: download.id,
+              name: download.name,
+              location: download.location,
+              downloadName: download.downloadName,
+            });
+
             try {
               // Get the final file path
               const filePath = await window.downlodrFunctions.joinDownloadPath(
@@ -807,11 +888,18 @@ const useDownloadStore = create<DownloadStore>()(
                 download.downloadName,
               );
 
+              console.log('📁 checkFinishedDownloads FILE PATH:', { filePath });
+
               // Get actual file size if file exists
               let actualSize = download.size;
               const fileExists = await window.downlodrFunctions.fileExists(
                 filePath,
               );
+
+              console.log('📊 checkFinishedDownloads FILE CHECK:', {
+                fileExists,
+                originalSize: download.size,
+              });
 
               if (fileExists) {
                 const fileSize = await window.downlodrFunctions.getFileSize(
@@ -819,6 +907,10 @@ const useDownloadStore = create<DownloadStore>()(
                 );
                 if (fileSize) {
                   actualSize = fileSize;
+                  console.log('📏 checkFinishedDownloads SIZE UPDATE:', {
+                    originalSize: download.size,
+                    actualSize,
+                  });
                 }
               }
 
@@ -830,7 +922,20 @@ const useDownloadStore = create<DownloadStore>()(
                 transcriptLocation: download.autoCaptionLocation || '',
               };
 
+              console.log(
+                '✨ checkFinishedDownloads CREATING FINISHED ENTRY:',
+                {
+                  id: finishedDownload.id,
+                  name: finishedDownload.name,
+                  status: finishedDownload.status,
+                  size: finishedDownload.size,
+                },
+              );
+
               // Update state: move to finished and history, remove from downloading
+              console.log(
+                '🔄 checkFinishedDownloads STATE UPDATE: Moving to finished arrays',
+              );
               set((state) => ({
                 finishedDownloads: state.finishedDownloads.some(
                   (fd) => fd.id === download.id,
@@ -850,16 +955,21 @@ const useDownloadStore = create<DownloadStore>()(
               }));
 
               console.log(
+                '✅ checkFinishedDownloads SUCCESS:',
                 `Successfully moved download "${download.name}" to finished downloads`,
               );
             } catch (error) {
               console.error(
+                '❌ checkFinishedDownloads ERROR:',
                 `Error processing finished download "${download.name}":`,
                 error,
               );
             }
           }
 
+          console.log(
+            '📤 checkFinishedDownloads OUTPUT: Finished processing, triggering processQueue',
+          );
           // Process queue after downloads finish
           get().processQueue();
         }
@@ -869,7 +979,13 @@ const useDownloadStore = create<DownloadStore>()(
           (downloading) => downloading.status === 'failed',
         );
 
+        console.log('💥 checkFinishedDownloads FAILED DOWNLOADS CHECK:', {
+          failedDownloadsCount: failedDownloads.length,
+          failedDownloadIds: failedDownloads.map((d) => d.id),
+        });
+
         if (failedDownloads.length > 0) {
+          console.log('🚨 checkFinishedDownloads PROCESSING FAILED DOWNLOADS');
           for (const download of failedDownloads) {
             const failedDownload = {
               ...download,
@@ -899,8 +1015,15 @@ const useDownloadStore = create<DownloadStore>()(
             }));
           }
 
+          console.log(
+            '📤 checkFinishedDownloads OUTPUT: Failed downloads processed, triggering processQueue',
+          );
           // Process queue after handling failures
           get().processQueue();
+        } else {
+          console.log(
+            '📤 checkFinishedDownloads OUTPUT: No downloads to process',
+          );
         }
       },
 
@@ -913,13 +1036,25 @@ const useDownloadStore = create<DownloadStore>()(
       },
 
       updateDownload: (id: string, result: any) => {
+        console.log('🔄 updateDownload CALLED');
+        console.log('📥 Received data:', { id, result });
+
         // Early return if no meaningful data to update
         if (!result) {
+          console.log(
+            '⚠️ updateDownload OUTPUT: Early return - no result data',
+          );
           return;
         }
 
         // Handle controller ID assignment
         if (result.type === 'controller' && result.controllerId) {
+          console.log('🎮 updateDownload CONTROLLER ID ASSIGNMENT');
+          console.log('📥 Received data:', {
+            type: result.type,
+            controllerId: result.controllerId,
+          });
+
           set((state) => ({
             downloading: state.downloading.map((download) =>
               download.id === id
@@ -927,14 +1062,25 @@ const useDownloadStore = create<DownloadStore>()(
                 : download,
             ),
           }));
+
+          console.log(
+            '📤 updateDownload OUTPUT: Controller ID assigned to download',
+            id,
+          );
           return;
         }
 
         // Handle process completion messages from main process
         if (result.type === 'completion') {
+          console.log('🏁 updateDownload COMPLETION DETECTION');
           const completionMessage = result.data.log;
           const completeLog = result.data.completeLog || completionMessage;
           const exitCode = result.data.exitCode || 0;
+          console.log('📥 Received data:', {
+            completionMessage,
+            completeLog: completeLog?.substring(0, 100) + '...',
+            exitCode,
+          });
 
           set((state) => ({
             downloading: state.downloading.map((downloading) => {
@@ -956,13 +1102,72 @@ const useDownloadStore = create<DownloadStore>()(
 
               if (exitCode === 0) {
                 updates.status = 'finished';
+                console.log(
+                  '✅ updateDownload STATUS: Download marked as finished',
+                  { id, exitCode },
+                );
               } else {
                 updates.status = 'failed';
+                console.log(
+                  '❌ updateDownload STATUS: Download marked as failed',
+                  { id, exitCode },
+                );
+
+                // 📊 TELEMETRY: Send error report when download fails
+                // Non-blocking background telemetry - won't interfere with store updates
+                setTimeout(async () => {
+                  try {
+                    const telemetryService = new TelemetryService({
+                      apiEndpoint: config.telemetry.endpoint,
+                    });
+                    await telemetryService.init();
+
+                    const success = await telemetryService.sendDownloadError({
+                      error: new Error(
+                        `Download failed: ${downloading.status || 'failed'}`,
+                      ),
+                      logMessage: completeLog || '',
+                      downloadContext: {
+                        url: downloading.videoUrl || '',
+                        format:
+                          downloading.formatId ||
+                          downloading.audioFormatId ||
+                          'unknown',
+                        quality:
+                          downloading.formatId ||
+                          downloading.audioFormatId ||
+                          'unknown',
+                        downloadName: downloading.name || 'Unknown Download',
+                        downloadId: downloading.id,
+                        progress: downloading.progress || 0,
+                        location: downloading.location || '',
+                        fileExtension: downloading.ext || downloading.audioExt,
+                        sessionDurationSeconds: downloading.elapsed || 0,
+                      },
+                    });
+
+                    console.log(
+                      success
+                        ? `📊 Auto-telemetry sent for failed download: ${downloading.name}`
+                        : `⚠️ Auto-telemetry failed for download: ${downloading.name}`,
+                    );
+                  } catch (error) {
+                    console.error(
+                      'Error sending auto-telemetry from store:',
+                      error,
+                    );
+                    // Don't throw - telemetry failures shouldn't break the app
+                  }
+                }, 0); // Non-blocking async execution
               }
 
               return { ...downloading, ...updates };
             }),
           }));
+
+          console.log(
+            '📤 updateDownload OUTPUT: Completion processed, triggering checkFinishedDownloads',
+          );
 
           // Trigger finished downloads check
           setTimeout(() => {
@@ -1184,7 +1389,7 @@ const useDownloadStore = create<DownloadStore>()(
           );
         }
         // Create a download ID before starting the download
-        const downloadId = (window as any).ytdlp.download(
+        const downloadResult = await window.extendr.download(
           {
             url: videoUrl,
             outputFilepath: finalLocation,
@@ -1196,9 +1401,13 @@ const useDownloadStore = create<DownloadStore>()(
           },
           async (result: any) => {
             // Use the optimized updateDownload method instead of inline callbacks
-            useDownloadStore.getState().updateDownload(downloadId, result);
+            useDownloadStore
+              .getState()
+              .updateDownload(downloadResult.downloadId, result);
           },
         );
+
+        const downloadId = downloadResult.downloadId;
         let captionsPath = '';
         let thumbnailPath = ' ';
         if (isCreateFolder) {
@@ -1288,13 +1497,27 @@ const useDownloadStore = create<DownloadStore>()(
         limitRate: string,
         options = { getTranscript: false, getThumbnail: false },
       ) => {
+        console.log('🎬 setDownload CALLED');
+        console.log('📥 Received data:', {
+          videoUrl,
+          location,
+          limitRate,
+          options,
+        });
+
         if (!location) {
-          console.error('Invalid path parameters:', { location });
+          console.error('❌ setDownload ERROR: Invalid path parameters:', {
+            location,
+          });
           return;
         }
 
         const downloadId = uuidv4();
+        console.log('🆔 setDownload: Generated downloadId:', downloadId);
 
+        console.log(
+          '📝 setDownload: Adding to forDownloads with status "fetching metadata"',
+        );
         set((state) => ({
           ...state,
           forDownloads: [
@@ -1340,9 +1563,19 @@ const useDownloadStore = create<DownloadStore>()(
           ],
         }));
 
+        console.log(
+          '✅ setDownload: Successfully added to forDownloads, current count:',
+          get().forDownloads.length,
+        );
+
         try {
+          console.log('🔍 setDownload: Fetching metadata for:', videoUrl);
           // Fetch metadata in background
-          const info = await window.ytdlp.getInfo(videoUrl);
+          const info = await window.extendr.getInfo(videoUrl);
+          console.log('📊 setDownload: Metadata fetched successfully:', {
+            title: info.data?.title,
+            extractor: info.data?.extractor_key,
+          });
 
           // Get channel name from info
           const channelName = info.data?.channel || info.data?.uploader || '';
@@ -1359,7 +1592,10 @@ const useDownloadStore = create<DownloadStore>()(
                 (lang) => lang !== 'live_chat',
               );
               if (availableLanguages.length > 0) {
-                caption = subtitles[availableLanguages[0]];
+                const firstLang = subtitles[availableLanguages[0]];
+                caption = Array.isArray(firstLang)
+                  ? firstLang[0]?.url || String(firstLang[0]) || '—'
+                  : String(firstLang) || '—';
               }
             }
 
@@ -1372,10 +1608,16 @@ const useDownloadStore = create<DownloadStore>()(
                 lang.includes('orig'),
               );
               if (originalLanguage) {
-                caption = automaticCaptions[originalLanguage];
+                const origLang = automaticCaptions[originalLanguage];
+                caption = Array.isArray(origLang)
+                  ? origLang[0]?.url || String(origLang[0]) || '—'
+                  : String(origLang) || '—';
               } else if (availableLanguages.length > 0) {
                 // Fall back to first available language if no original found
-                caption = automaticCaptions[availableLanguages[0]];
+                const firstLang = automaticCaptions[availableLanguages[0]];
+                caption = Array.isArray(firstLang)
+                  ? firstLang[0]?.url || String(firstLang[0]) || '—'
+                  : String(firstLang) || '—';
               }
             }
           }
@@ -1390,8 +1632,18 @@ const useDownloadStore = create<DownloadStore>()(
             thumbnail = info.data.thumbnail;
           }
           // Process formats using the service
+          console.log(info);
+          // Create a compatible VideoInfo object for the service
+          const videoInfoForService = {
+            data: {
+              formats: info.data?.formats || [],
+              extractor_key: info.data?.extractor_key || '',
+              format_id: info.data?.format_id || '',
+              ext: info.data?.ext || '',
+            },
+          };
           const { formatOptions, defaultFormatId, defaultExt } =
-            await VideoFormatService.processVideoFormats(info);
+            await VideoFormatService.processVideoFormats(videoInfoForService);
 
           // Get default audio format if available
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1399,6 +1651,7 @@ const useDownloadStore = create<DownloadStore>()(
             f.label.includes('Audio Only'),
           );
 
+          console.log('🔄 setDownload: Updating forDownloads with metadata');
           // Update the forDownloads entry with metadata AND the new folder path
           set((state) => ({
             ...state,
@@ -1418,7 +1671,7 @@ const useDownloadStore = create<DownloadStore>()(
                     downloadStart: false,
                     formats: formatOptions,
                     isLive: info.data?.is_live || false,
-                    elapsed: info.data?.elapsed || null,
+                    elapsed: (info.data as any)?.elapsed || null,
                     location: location,
                     automaticCaption: caption,
                     thumbnails: thumbnail,
@@ -1433,11 +1686,18 @@ const useDownloadStore = create<DownloadStore>()(
                 : download,
             ),
           }));
+
+          console.log(
+            '✅ setDownload: Updated with metadata, status now "to download"',
+          );
           const currentDownload = get().forDownloads.find(
             (d) => d.id === downloadId,
           );
 
           if (currentDownload?.isLive) {
+            console.log(
+              '🔴 setDownload: Live video detected, removing from forDownloads',
+            );
             toast({
               variant: 'destructive',
               title: 'Live Video Links Not Allowed',
@@ -1447,9 +1707,19 @@ const useDownloadStore = create<DownloadStore>()(
             });
 
             const { removeFromForDownloads } = get(); // Get the current state methods
-            removeFromForDownloads(downloadId); // Call the method            return;
+            removeFromForDownloads(downloadId); // Call the method
+            return;
           }
+
+          console.log(
+            '📤 setDownload OUTPUT: Successfully completed, returning downloadId:',
+            downloadId,
+          );
         } catch (error) {
+          console.error(
+            '❌ setDownload ERROR: Failed to fetch metadata:',
+            error,
+          );
           toast({
             variant: 'destructive',
             title: `Could not find video metadata`,
@@ -1828,8 +2098,20 @@ const useDownloadStore = create<DownloadStore>()(
       },
 
       processQueue: () => {
+        console.log('⚙️ processQueue CALLED');
+        const queueLength = get().queuedDownloads.length;
+        const downloadingCount = get().downloading.length;
+        console.log('📥 Received data:', {
+          queueLength,
+          downloadingCount,
+          queuedDownloadIds: get().queuedDownloads.map((d) => d.id),
+        });
+
         // Start the download worker - it will automatically stop when queue is empty
         downloadController.startWorker();
+        console.log(
+          '📤 processQueue OUTPUT: DownloadController.startWorker() called',
+        );
       },
 
       removeFromQueue: (id: string) => {
