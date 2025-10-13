@@ -11,12 +11,15 @@ extendr.Config.extensionsPaths = [
   },
   {
     name: 'portable',
-    directory: path.join(app.getPath('exe'), '../extensions'),
+    directory: path.join(
+      app.getPath('exe'),
+      app.isPackaged ? '../extensions' : '../../../../extensions',
+    ),
   },
 ];
 extendr.Config.loadOrderPath = path.join(
   app.getPath('exe'),
-  '../load-order.json',
+  app.isPackaged ? '../load-order.json' : '../../../../load-order.json',
 );
 
 export async function setupExtendr() {
