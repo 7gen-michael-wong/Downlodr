@@ -119,10 +119,6 @@ function uuidv4() {
 
 // Simplified migration with essential validation (appropriate for Electron)
 const migrateDownloadStore = (persistedState: any, version: number) => {
-  console.log(
-    `Migrating downloadStore from version ${version} to ${DOWNLOAD_STORE_VERSION}`,
-  );
-
   // Create safe default state
   const defaultState = {
     forDownloads: [] as ForDownload[],
@@ -138,7 +134,6 @@ const migrateDownloadStore = (persistedState: any, version: number) => {
   // If no version exists, this is a legacy state - migrate to current structure
   if (version === undefined || version === 0) {
     if (!persistedState || typeof persistedState !== 'object') {
-      console.log('No valid persisted state found, using default state');
       return defaultState;
     }
 
@@ -250,8 +245,6 @@ const migrateDownloadStore = (persistedState: any, version: number) => {
           ? (persistedState as any).availableCategories
           : defaultState.availableCategories,
       };
-
-      console.log('Successfully migrated downloadStore to version 1');
       return migratedState;
     } catch (error) {
       console.error('Migration error, using default state:', error);
@@ -286,54 +279,26 @@ class DownloadController {
 
   // Start the download worker if not already running
   startWorker() {
-    console.log('🚀 DownloadController.startWorker CALLED');
-    console.log('📥 Received data:', {
-      isAlreadyRunning: !!this.processingInterval,
-      isProcessing: this.isProcessing,
-    });
-
     if (this.processingInterval) {
-      console.log(
-        '📤 DownloadController.startWorker OUTPUT: Already running, skipping',
-      );
       return; // Already running
     }
 
-    console.log('⚙️ DownloadController.startWorker: Starting worker');
     this.processingInterval = setInterval(() => {
       this.processNextDownload();
     }, 500); // Check every 500ms for smoother processing
 
     // Also start the stalled download checker
     this.startStalledChecker();
-    console.log(
-      '📤 DownloadController.startWorker OUTPUT: Worker and stalled checker started',
-    );
   }
 
   // Start the stalled download checker
   startStalledChecker() {
-    console.log('🔍 DownloadController.startStalledChecker CALLED');
-    console.log('📥 Received data:', {
-      isAlreadyRunning: !!this.stalledCheckInterval,
-    });
-
     if (this.stalledCheckInterval) {
-      console.log(
-        '📤 DownloadController.startStalledChecker OUTPUT: Already running, skipping',
-      );
       return; // Already running
     }
-
-    console.log(
-      '⏰ DownloadController.startStalledChecker: Starting stalled download checker',
-    );
     this.stalledCheckInterval = setInterval(() => {
       useDownloadStore.getState().checkStalledDownloads();
     }, 30000); // Check every 30 seconds
-    console.log(
-      '📤 DownloadController.startStalledChecker OUTPUT: Stalled checker started (30s interval)',
-    );
   }
 
   // Stop the download worker
@@ -359,12 +324,7 @@ class DownloadController {
 
   // Process one download at a time (Worker Pattern)
   private async processNextDownload() {
-    console.log('⚡ DownloadController.processNextDownload CALLED');
-
     if (this.isProcessing) {
-      console.log(
-        '📤 DownloadController.processNextDownload OUTPUT: Already processing, skipping',
-      );
       return; // Prevent concurrent processing
     }
 
@@ -381,26 +341,12 @@ class DownloadController {
     // Token Bucket Algorithm: Check if we have available "tokens" (slots)
     const availableTokens = maxConcurrentDownloads - currentActiveDownloads;
 
-    console.log('📥 Received data:', {
-      queuedDownloadsCount: queuedDownloads.length,
-      currentActiveDownloads,
-      maxConcurrentDownloads,
-      availableTokens,
-      queuedDownloadIds: queuedDownloads.map((d) => d.id),
-    });
-
     if (availableTokens <= 0) {
-      console.log(
-        '📤 DownloadController.processNextDownload OUTPUT: No tokens available, waiting',
-      );
       // No tokens available, wait for next cycle
       return;
     }
 
     if (queuedDownloads.length === 0) {
-      console.log(
-        '📤 DownloadController.processNextDownload OUTPUT: Queue empty, stopping worker',
-      );
       // No work to do, stop worker to save resources
       this.stopWorker();
       return;
@@ -428,7 +374,6 @@ class DownloadController {
         duration: 2000,
       });
     } catch (error) {
-      console.error('DownloadController: Error starting download:', error);
       // Put the download back in queue on error
       useDownloadStore.setState((state) => ({
         queuedDownloads: [nextDownload, ...state.queuedDownloads],
@@ -444,10 +389,6 @@ class DownloadController {
 
     // Replicate the addDownload logic without queue checks
     if (!download.location || !download.downloadName) {
-      console.error('Invalid path parameters:', {
-        location: download.location,
-        downloadName: download.downloadName,
-      });
       return;
     }
 
@@ -852,19 +793,6 @@ async function checkIndexedDBUsage(): Promise<{
     });
 
     const stats = await adapter.getStorageStats();
-
-    // Also check localStorage for comparison
-    const localStorageTotal = JSON.stringify(localStorage).length;
-
-    console.log('Storage usage comparison:', {
-      indexedDB: {
-        totalSize: `${(stats.totalSize / 1024).toFixed(2)} KB`,
-        itemCount: stats.itemCount,
-        items: stats.items,
-      },
-      localStorage: `${(localStorageTotal / 1024).toFixed(2)} KB`,
-    });
-
     return {
       total: stats.totalSize,
       downlodrSize: stats.totalSize,
@@ -924,7 +852,6 @@ const useDownloadStore = create<DownloadStore>()(
       availableCategories: [] as string[],
 
       checkFinishedDownloads: async () => {
-        console.log('🔍 checkFinishedDownloads CALLED');
         const currentDownloads = get().downloading;
         console.log('📥 Received data:', {
           currentDownloadsCount: currentDownloads.length,
@@ -942,43 +869,19 @@ const useDownloadStore = create<DownloadStore>()(
             downloading.completionCount >= 2, // Both phases completed
         );
 
-        console.log('🎯 checkFinishedDownloads FILTER RESULT:', {
-          finishedDownloadsCount: finishedDownloads.length,
-          finishedDownloadIds: finishedDownloads.map((d) => d.id),
-        });
-
         if (finishedDownloads.length > 0) {
-          console.log(
-            '🚀 checkFinishedDownloads PROCESSING FINISHED DOWNLOADS',
-          );
-
           for (const download of finishedDownloads) {
-            console.log('📦 checkFinishedDownloads PROCESSING DOWNLOAD:', {
-              id: download.id,
-              name: download.name,
-              location: download.location,
-              downloadName: download.downloadName,
-            });
-
             try {
               // Get the final file path
               const filePath = await window.downlodrFunctions.joinDownloadPath(
                 download.location,
                 download.downloadName,
               );
-
-              console.log('📁 checkFinishedDownloads FILE PATH:', { filePath });
-
               // Get actual file size if file exists
               let actualSize = download.size;
               const fileExists = await window.downlodrFunctions.fileExists(
                 filePath,
               );
-
-              console.log('📊 checkFinishedDownloads FILE CHECK:', {
-                fileExists,
-                originalSize: download.size,
-              });
 
               if (fileExists) {
                 const fileSize = await window.downlodrFunctions.getFileSize(
@@ -986,10 +889,6 @@ const useDownloadStore = create<DownloadStore>()(
                 );
                 if (fileSize) {
                   actualSize = fileSize;
-                  console.log('📏 checkFinishedDownloads SIZE UPDATE:', {
-                    originalSize: download.size,
-                    actualSize,
-                  });
                 }
               }
 
@@ -1000,21 +899,7 @@ const useDownloadStore = create<DownloadStore>()(
                 size: actualSize,
                 transcriptLocation: download.autoCaptionLocation || '',
               };
-
-              console.log(
-                '✨ checkFinishedDownloads CREATING FINISHED ENTRY:',
-                {
-                  id: finishedDownload.id,
-                  name: finishedDownload.name,
-                  status: finishedDownload.status,
-                  size: finishedDownload.size,
-                },
-              );
-
               // Update state: move to finished and history, remove from downloading
-              console.log(
-                '🔄 checkFinishedDownloads STATE UPDATE: Moving to finished arrays',
-              );
               set((state) => ({
                 finishedDownloads: state.finishedDownloads.some(
                   (fd) => fd.id === download.id,
@@ -1032,11 +917,6 @@ const useDownloadStore = create<DownloadStore>()(
                   (d) => d.id !== download.id,
                 ),
               }));
-
-              console.log(
-                '✅ checkFinishedDownloads SUCCESS:',
-                `Successfully moved download "${download.name}" to finished downloads`,
-              );
             } catch (error) {
               console.error(
                 '❌ checkFinishedDownloads ERROR:',
@@ -1045,10 +925,6 @@ const useDownloadStore = create<DownloadStore>()(
               );
             }
           }
-
-          console.log(
-            '📤 checkFinishedDownloads OUTPUT: Finished processing, triggering processQueue',
-          );
           // Process queue after downloads finish
           get().processQueue();
         }
@@ -1058,13 +934,7 @@ const useDownloadStore = create<DownloadStore>()(
           (downloading) => downloading.status === 'failed',
         );
 
-        console.log('💥 checkFinishedDownloads FAILED DOWNLOADS CHECK:', {
-          failedDownloadsCount: failedDownloads.length,
-          failedDownloadIds: failedDownloads.map((d) => d.id),
-        });
-
         if (failedDownloads.length > 0) {
-          console.log('🚨 checkFinishedDownloads PROCESSING FAILED DOWNLOADS');
           for (const download of failedDownloads) {
             const failedDownload = {
               ...download,
@@ -1093,10 +963,6 @@ const useDownloadStore = create<DownloadStore>()(
               ),
             }));
           }
-
-          console.log(
-            '📤 checkFinishedDownloads OUTPUT: Failed downloads processed, triggering processQueue',
-          );
           // Process queue after handling failures
           get().processQueue();
         } else {
@@ -1115,9 +981,6 @@ const useDownloadStore = create<DownloadStore>()(
       },
 
       updateDownload: (id: string, result: any) => {
-        console.log('🔄 updateDownload CALLED');
-        console.log('📥 Received data:', { id, result });
-
         // Early return if no meaningful data to update
         if (!result) {
           console.log(
@@ -1128,12 +991,6 @@ const useDownloadStore = create<DownloadStore>()(
 
         // Handle controller ID assignment
         if (result.type === 'controller' && result.controllerId) {
-          console.log('🎮 updateDownload CONTROLLER ID ASSIGNMENT');
-          console.log('📥 Received data:', {
-            type: result.type,
-            controllerId: result.controllerId,
-          });
-
           set((state) => ({
             downloading: state.downloading.map((download) =>
               download.id === id
@@ -1141,26 +998,14 @@ const useDownloadStore = create<DownloadStore>()(
                 : download,
             ),
           }));
-
-          console.log(
-            '📤 updateDownload OUTPUT: Controller ID assigned to download',
-            id,
-          );
           return;
         }
 
         // Handle process completion messages from main process
         if (result.type === 'completion') {
-          console.log('🏁 updateDownload COMPLETION DETECTION');
           const completionMessage = result.data.log;
           const completeLog = result.data.completeLog || completionMessage;
           const exitCode = result.data.exitCode || 0;
-          console.log('📥 Received data:', {
-            completionMessage,
-            completeLog: completeLog?.substring(0, 100) + '...',
-            exitCode,
-          });
-
           set((state) => ({
             downloading: state.downloading.map((downloading) => {
               if (downloading.id !== id) return downloading;
@@ -1181,10 +1026,6 @@ const useDownloadStore = create<DownloadStore>()(
 
               if (exitCode === 0) {
                 updates.status = 'finished';
-                console.log(
-                  '✅ updateDownload STATUS: Download marked as finished',
-                  { id, exitCode },
-                );
               } else {
                 updates.status = 'failed';
                 console.log(
@@ -1243,10 +1084,6 @@ const useDownloadStore = create<DownloadStore>()(
               return { ...downloading, ...updates };
             }),
           }));
-
-          console.log(
-            '📤 updateDownload OUTPUT: Completion processed, triggering checkFinishedDownloads',
-          );
 
           // Trigger finished downloads check
           setTimeout(() => {
@@ -1576,27 +1413,11 @@ const useDownloadStore = create<DownloadStore>()(
         limitRate: string,
         options = { getTranscript: false, getThumbnail: false },
       ) => {
-        console.log('🎬 setDownload CALLED');
-        console.log('📥 Received data:', {
-          videoUrl,
-          location,
-          limitRate,
-          options,
-        });
-
         if (!location) {
-          console.error('❌ setDownload ERROR: Invalid path parameters:', {
-            location,
-          });
           return;
         }
 
         const downloadId = uuidv4();
-        console.log('🆔 setDownload: Generated downloadId:', downloadId);
-
-        console.log(
-          '📝 setDownload: Adding to forDownloads with status "fetching metadata"',
-        );
         set((state) => ({
           ...state,
           forDownloads: [
@@ -1642,27 +1463,15 @@ const useDownloadStore = create<DownloadStore>()(
           ],
         }));
 
-        console.log(
-          '✅ setDownload: Successfully added to forDownloads, current count:',
-          get().forDownloads.length,
-        );
-
         try {
-          console.log('🔍 setDownload: Fetching metadata for:', videoUrl);
           // Fetch metadata in background
           const info = await window.extendr.getInfo(videoUrl);
-          console.log(info);
           // Validate info response structure
           if (!info || !info.data) {
             throw new Error(
               'Invalid response from metadata service: info or info.data is undefined',
             );
           }
-
-          console.log('📊 setDownload: Metadata fetched successfully:', {
-            title: info.data?.title,
-            extractor: info.data?.extractor_key,
-          });
 
           // Get channel name from info
           const channelName = info.data?.channel || info.data?.uploader || '';
@@ -1718,8 +1527,6 @@ const useDownloadStore = create<DownloadStore>()(
           ) {
             thumbnail = info.data.thumbnail;
           }
-          // Process formats using the service
-          console.log(info);
           // Create a compatible VideoInfo object for the service
           const videoInfoForService = {
             data: {
@@ -1737,8 +1544,6 @@ const useDownloadStore = create<DownloadStore>()(
           const defaultAudioFormat = formatOptions.find((f) =>
             f.label.includes('Audio Only'),
           );
-
-          console.log('🔄 setDownload: Updating forDownloads with metadata');
           // Update the forDownloads entry with metadata AND the new folder path
           set((state) => ({
             ...state,
@@ -1773,18 +1578,11 @@ const useDownloadStore = create<DownloadStore>()(
                 : download,
             ),
           }));
-
-          console.log(
-            '✅ setDownload: Updated with metadata, status now "to download"',
-          );
           const currentDownload = get().forDownloads.find(
             (d) => d.id === downloadId,
           );
 
           if (currentDownload?.isLive) {
-            console.log(
-              '🔴 setDownload: Live video detected, removing from forDownloads',
-            );
             toast({
               variant: 'destructive',
               title: 'Live Video Links Not Allowed',
@@ -1797,11 +1595,6 @@ const useDownloadStore = create<DownloadStore>()(
             removeFromForDownloads(downloadId); // Call the method
             return;
           }
-
-          console.log(
-            '📤 setDownload OUTPUT: Successfully completed, returning downloadId:',
-            downloadId,
-          );
         } catch (error) {
           console.error(
             '❌ setDownload ERROR: Failed to fetch metadata:',
@@ -2213,20 +2006,8 @@ const useDownloadStore = create<DownloadStore>()(
       },
 
       processQueue: () => {
-        console.log('⚙️ processQueue CALLED');
-        const queueLength = get().queuedDownloads.length;
-        const downloadingCount = get().downloading.length;
-        console.log('📥 Received data:', {
-          queueLength,
-          downloadingCount,
-          queuedDownloadIds: get().queuedDownloads.map((d) => d.id),
-        });
-
         // Start the download worker - it will automatically stop when queue is empty
         downloadController.startWorker();
-        console.log(
-          '📤 processQueue OUTPUT: DownloadController.startWorker() called',
-        );
       },
 
       removeFromQueue: (id: string) => {
@@ -2413,11 +2194,6 @@ const useDownloadStore = create<DownloadStore>()(
             ).toFixed(2)} KB`,
             duration: 8000,
           });
-
-          console.log('Complete storage analysis:', {
-            indexedDB: indexedDBStats,
-            localStorage: localStorageStats,
-          });
         } catch (error) {
           console.error('Error testing storage:', error);
           const { total, downlodrSize } = checkLocalStorageUsage();
@@ -2461,9 +2237,6 @@ const useDownloadStore = create<DownloadStore>()(
       }),
       migrate: migrateDownloadStore,
       onRehydrateStorage: () => {
-        console.log(
-          'Rehydrating download store from IndexedDB with concurrent write protection',
-        );
         return (state, error) => {
           if (error) {
             console.error('Error rehydrating download store:', error);
