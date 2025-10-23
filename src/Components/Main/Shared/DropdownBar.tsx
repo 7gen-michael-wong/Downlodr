@@ -155,6 +155,23 @@ const DropdownBar = ({ className }: { className?: string }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleWhisper = async () => {
+    const models = window.extendr.extensions['whisper-x-downloader'];
+    const modelMe =
+      window.extendr.extensions['whisper-x-downloader'][
+        'whisperx:getModelInfo'
+      ]('tiny');
+    const availModel =
+      window.extendr.extensions['whisper-x-downloader'][
+        'whisperx:listInstalled'
+      ]();
+
+    const availModel2 = await window.extendr.extensions['whisper-x-downloader'][
+      'whisperx:downloadModel'
+    ]('base.en');
+    console.log(availModel); //C:\Users\Mika\AppData\Roaming\Downlodr\extensions\
+  };
+
   const handleCheckForUpdates = async () => {
     toast({
       title: 'Checking for updates',
@@ -340,7 +357,7 @@ const DropdownBar = ({ className }: { className?: string }) => {
       </button>
       */}
       {/* Search Bar */}
-
+      <button onClick={handleWhisper}>Testing</button>
       <div ref={searchRef} className="relative my-10 mr-6 w-1/4 hidden">
         <div className="flex items-center dark:bg-darkModeDropdown rounded-md border border-[#D1D5DB] dark:border-none px-2">
           <FiSearch className="text-gray-500 dark:text-gray-400 h-4 w-4 mr-1" />
