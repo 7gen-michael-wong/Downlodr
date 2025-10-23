@@ -248,7 +248,7 @@ const WhisperModelDownloadModal: React.FC<WhisperModelDownloadModalProps> = ({
               </select>
             </div>
 
-            {/* Selected Model Details */}
+            {/* Selected Model Detail*/}
             {selectedModel && (
               <div className="bg-gray-50 dark:bg-darkMode rounded-lg p-4 space-y-3">
                 <div className="flex items-start gap-2">
