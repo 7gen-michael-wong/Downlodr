@@ -17,6 +17,7 @@ import AboutModal from '@/Components/Main/Modal/AboutModal';
 import AdvancedSettingsModal from '@/Components/Main/Modal/AdvancedSettingsModal';
 import HelpModal from '@/Components/Main/Modal/HelpModal';
 import SettingsModal from '@/Components/Main/Modal/SettingsModal';
+import WhisperModelDownloadModal from '@/Components/Main/Modal/WhisperModelDownloadModal';
 import { useToast } from '@/Components/SubComponents/shadcn/hooks/use-toast';
 import { DownloadItem } from '@/schema/componentSchema';
 import useDownloadStore, { HistoryDownloads } from '@/Store/downloadStore';
@@ -35,11 +36,11 @@ const DropdownBar = ({ className }: { className?: string }) => {
     'file' | 'help' | 'help2' | null
   >(null);
   const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
-  const [isDownloadModalOpen, setDownloadModalOpen] = useState(false);
   const [isAboutModalOpen, setAboutModalOpen] = useState(false);
   const [isHelpModalOpen, setHelpModalOpen] = useState(false);
   const [isAdvancedSettingsModalOpen, setAdvancedSettingsModalOpen] =
-    useState(false); // Misc
+    useState(false);
+  const [isWhisperModalOpen, setWhisperModalOpen] = useState(false); // Misc
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -154,23 +155,6 @@ const DropdownBar = ({ className }: { className?: string }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const handleWhisper = async () => {
-    const models = window.extendr.extensions['whisper-x-downloader'];
-    const modelMe =
-      window.extendr.extensions['whisper-x-downloader'][
-        'whisperx:getModelInfo'
-      ]('tiny');
-    const availModel =
-      window.extendr.extensions['whisper-x-downloader'][
-        'whisperx:listInstalled'
-      ]();
-
-    const availModel2 = await window.extendr.extensions['whisper-x-downloader'][
-      'whisperx:downloadModel'
-    ]('base.en');
-    console.log(availModel); //C:\Users\Mika\AppData\Roaming\Downlodr\extensions\
-  };
 
   const handleCheckForUpdates = async () => {
     toast({
@@ -356,8 +340,19 @@ const DropdownBar = ({ className }: { className?: string }) => {
         <span className="text-xs">Advanced Settings</span>
       </button>
       */}
+      {/* Whisper Models Button */}
+      <button
+        className="px-3 py-1 hover:bg-gray-100 dark:hover:bg-darkModeCompliment rounded font-semibold"
+        onClick={(e) => {
+          e.stopPropagation();
+          setWhisperModalOpen(true);
+          setActiveMenu(null);
+        }}
+      >
+        Whisper Models
+      </button>
+
       {/* Search Bar */}
-      <button onClick={handleWhisper}>Testing</button>
       <div ref={searchRef} className="relative my-10 mr-6 w-1/4 hidden">
         <div className="flex items-center dark:bg-darkModeDropdown rounded-md border border-[#D1D5DB] dark:border-none px-2">
           <FiSearch className="text-gray-500 dark:text-gray-400 h-4 w-4 mr-1" />
@@ -440,6 +435,11 @@ const DropdownBar = ({ className }: { className?: string }) => {
         onClose={() => setShowFileNotExistModal(false)}
         selectedDownloads={missingFile ? [missingFile] : []}
         download={missingFile}
+      />
+
+      <WhisperModelDownloadModal
+        isOpen={isWhisperModalOpen}
+        onClose={() => setWhisperModalOpen(false)}
       />
     </div>
   );
